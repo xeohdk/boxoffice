@@ -1,5 +1,6 @@
 import datetime
 from zoneinfo import ZoneInfo
+import urllib.parse
 import requests
 import pandas as pd
 import streamlit as st
@@ -103,95 +104,4 @@ if not daily_list:
     st.stop()
 
 # -----------------------------------------------------------------------------
-# 6. 데이터 변환 및 가공 (순위 증감, 100만 관객 트로피)
-# -----------------------------------------------------------------------------
-df = pd.DataFrame(daily_list)
-
-numeric_cols = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt"]
-for col in numeric_cols:
-    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-
-# 순위 증감 화살표 가공
-def format_rank_change(val):
-    if val > 0:
-        return f"🔺 {val}"
-    elif val < 0:
-        return f"🔹 {abs(val)}"
-    return "-"
-
-df["순위변동"] = df["rankInten"].apply(format_rank_change)
-
-# 100만 관객 이상 트로피 표시
-def format_movie_name(row):
-    name = row["movieNm"]
-    if row["audiAcc"] >= 1000000:
-        return f"{name} 🏆"
-    return name
-
-df["표시_영화명"] = df.apply(format_movie_name, axis=1)
-
-# -----------------------------------------------------------------------------
-# 7. 1위 영화 지표 카드 3장
-# -----------------------------------------------------------------------------
-top1 = df.iloc[0]
-
-st.divider()
-st.subheader(f"🥇 1위 영화: {top1['표시_영화명']}")
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric(label="현재 순위", value=f"{top1['rank']}위", delta=top1["순위변동"])
-with col2:
-    st.metric(label="당일 관객수", value=f"{top1['audiCnt']:,} 명")
-with col3:
-    st.metric(label="누적 관객수", value=f"{top1['audiAcc']:,} 명")
-
-st.divider()
-
-# -----------------------------------------------------------------------------
-# 8. 관객수 상위 5편 막대그래프
-# -----------------------------------------------------------------------------
-st.subheader("📊 관객수 상위 5개 영화")
-
-top5_df = df.head(5).copy()
-chart_data = top5_df.set_index("movieNm")[["audiCnt"]]
-chart_data.columns = ["관객수"]
-
-st.bar_chart(chart_data)
-
-st.divider()
-
-# -----------------------------------------------------------------------------
-# 9. 전체 박스오피스 순위표 및 데이터 다운로드 기능
-# -----------------------------------------------------------------------------
-st.subheader("📋 박스오피스 전체 순위표")
-
-display_df = df[["rank", "순위변동", "표시_영화명", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
-display_df.columns = ["순위", "순위변동", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
-
-# 수치 데이터 포맷팅
-formatted_df = display_df.copy()
-formatted_df["관객수"] = formatted_df["관객수"].map("{:,}".format)
-formatted_df["누적관객"] = formatted_df["누적관객"].map("{:,}".format)
-formatted_df["스크린수"] = formatted_df["스크린수"].map("{:,}".format)
-
-# 테이블 출력
-st.dataframe(
-    formatted_df,
-    use_container_width=True,
-    hide_index=True
-)
-
-# -----------------------------------------------------------------------------
-# [신규 기능] CSV 파일 다운로드 버튼
-# -----------------------------------------------------------------------------
-# 엑셀 한글 깨짐 방지를 위해 utf-8-sig 인코딩 적용
-csv_bytes = display_df.to_csv(index=False).encode("utf-8-sig")
-
-st.download_button(
-    label="📥 조회된 박스오피스 표 CSV로 다운로드",
-    data=csv_bytes,
-    file_name=f"boxoffice_{target_dt}.csv",
-    mime="text/csv",
-    help="현재 화면에 표시된 박스오피스 순위표를 엑셀에서 열 수 있는 CSV 파일로 저장합니다."
-)
+# 6. 데이터 변환 및 가공 (순위 증감, 100만 관객 트로피
