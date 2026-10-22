@@ -88,7 +88,6 @@ params = {
     "targetDt": target_dt
 }
 
-# 서버 차단 및 무한 대기 방지용 User-Agent 헤더
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
@@ -107,7 +106,7 @@ with st.spinner("🎬 영화진흥위원회에서 데이터를 불러오는 중�
         st.error("🚨 **요청 시간이 초과되었습니다.**")
         st.info("KOBIS 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.")
         st.stop()
-    except Exception as e:
+    except Exception:
         st.error("🚨 **네트워크 통신 중 오류가 발생했습니다.**")
         st.info("인터넷 연결 상태 및 KOBIS 키 설정 상태를 확인해 주세요.")
         st.stop()
@@ -119,26 +118,3 @@ if "faultInfo" in data:
     fault = data["faultInfo"]
     st.error("🚨 **KOBIS API 호출 오류가 발생했습니다.**")
     st.warning(f"오류 메시지: {fault.get('message', '알 수 없는 오류')}")
-    st.info(
-        "**[확인 방법]**\n\n"
-        "1. 입력하신 `KOBIS_KEY`가 올바른 키인지 확인해 주세요.\n"
-        "2. KOBIS 오픈API 마이페이지에서 키 상태 및 일일 사용량을 확인해 주세요."
-    )
-    st.stop()
-
-box_office_result = data.get("boxOfficeResult", {})
-daily_list = box_office_result.get("dailyBoxOfficeList", [])
-
-if not daily_list:
-    st.warning("⚠️ **그날은 아직 집계 전입니다**")
-    st.info("선택하신 날짜의 박스오피스 집계 데이터가 없거나 아직 집계 중입니다. 다른 날짜를 선택해 보세요.")
-    st.stop()
-
-# -----------------------------------------------------------------------------
-# 6. 데이터 변환 및 가공 (순위 증감, 100만 관객 트로피)
-# -----------------------------------------------------------------------------
-df = pd.DataFrame(daily_list)
-
-numeric_cols = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt"]
-for col in numeric_cols:
-    df[col] = pd.to_
