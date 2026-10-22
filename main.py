@@ -5,13 +5,59 @@ import pandas as pd
 import streamlit as st
 
 # -----------------------------------------------------------------------------
-# 1. 스트림릿 페이지 기본 설정
+# 1. 스트림릿 페이지 기본 설정 & 영화관 테마 CSS 적용
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="일별 박스오피스 조회",
     page_icon="🎬",
     layout="wide"
 )
+
+# 영화관 느낌의 다크 스타일 커스텀 CSS (배경: 어두운 인디고, 포인트: 영화관 골드/레드)
+cinema_theme = """
+<style>
+/* 앱 전체 배경 및 기본 글자색 */
+.stApp {
+    background-color: #0d0e15;
+    color: #e6e6e6;
+}
+
+/* 메인 타이틀 및 섹션 제목 색상 (시네마 골드) */
+h1, h2, h3 {
+    color: #f5c518 !important;
+    font-weight: 700;
+}
+
+/* 카드/지표(Metric) 박스 영화관 티켓 느낌 배경 */
+[data-testid="stMetric"] {
+    background-color: #161824;
+    padding: 18px;
+    border-radius: 12px;
+    border: 1px solid #2a2d40;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* 구분선 스타일 */
+hr {
+    border-color: #2a2d40 !important;
+}
+
+/* 다운로드 버튼 스타일 (영화관 레드 버튼) */
+.stDownloadButton>button {
+    background-color: #e50914 !important;
+    color: white !important;
+    border-radius: 8px !important;
+    border: none !important;
+    font-weight: bold !important;
+    padding: 10px 20px !important;
+}
+
+.stDownloadButton>button:hover {
+    background-color: #b80710 !important;
+}
+</style>
+"""
+st.markdown(cinema_theme, unsafe_allow_html=True)
 
 st.title("🎬 일별 박스오피스 조회")
 
@@ -42,17 +88,19 @@ api_key = ""
 
 try:
     if "KOBIS_KEY" in st.secrets:
-        api_key = st.secrets["KOBIS_KEY"]
+        api_key = str(st.secrets["KOBIS_KEY"]).strip()
 except Exception:
     pass
 
 if not api_key:
     st.info("💡 Secrets 설정이 비어 있어 수동 입력모드로 전환되었습니다.")
-    api_key = st.text_input(
+    api_key_input = st.text_input(
         "🔑 KOBIS API 키를 입력하세요", 
         type="password", 
         help="영화진흥위원회(KOBIS)에서 발급받은 인증키를 입력하세요."
     )
+    if api_key_input:
+        api_key = api_key_input.strip()
     
     with st.expander("📌 배포 서버(Secrets)에 키를 영구 저장하는 방법"):
         st.markdown(
@@ -77,8 +125,12 @@ params = {
     "targetDt": target_dt
 }
 
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
+
 try:
-    response = requests.get(url, params=params, timeout=10)
+    response = requests.get(url, params=params, headers=headers, timeout=10)
     data = response.json()
 except Exception:
     st.error("🚨 **서버와의 통신 중 오류가 발생했습니다.**")
@@ -103,13 +155,19 @@ if not daily_list:
     st.stop()
 
 # -----------------------------------------------------------------------------
+# [신규 효과] 데이터 로딩 성공 시 폭죽(풍선) 축하 효과 발생
+# -----------------------------------------------------------------------------
+st.balloons()
+
+# -----------------------------------------------------------------------------
 # 6. 데이터 변환 및 가공 (순위 증감, 100만 관객 트로피)
 # -----------------------------------------------------------------------------
 df = pd.DataFrame(daily_list)
 
 numeric_cols = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt"]
 for col in numeric_cols:
-    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+    if col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
 # 순위 증감 화살표 가공
 def format_rank_change(val):
@@ -183,9 +241,8 @@ st.dataframe(
 )
 
 # -----------------------------------------------------------------------------
-# [신규 기능] CSV 파일 다운로드 버튼
+# CSV 파일 다운로드 버튼
 # -----------------------------------------------------------------------------
-# 엑셀 한글 깨짐 방지를 위해 utf-8-sig 인코딩 적용
 csv_bytes = display_df.to_csv(index=False).encode("utf-8-sig")
 
 st.download_button(
