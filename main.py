@@ -22,7 +22,7 @@ kst_tz = ZoneInfo("Asia/Seoul")
 now_kst = datetime.datetime.now(kst_tz)
 yesterday_kst = (now_kst - datetime.timedelta(days=1)).date()
 
-# 달력에서 선택할 수 있는 가장 늦은 날짜는 '어제'로 제한 (오늘 날짜 선택 불가)
+# 달력 선택 범위 제한 (최대 어제 날짜까지)
 selected_date = st.date_input(
     "📅 조회할 날짜를 선택하세요",
     value=yesterday_kst,
@@ -30,7 +30,6 @@ selected_date = st.date_input(
     help="오늘 날짜는 아직 집계 전이므로 어제 날짜까지만 선택이 가능합니다."
 )
 
-# API 요청용 날짜 형식 (YYYYMMDD) 및 화면 표시용 형식
 target_dt = selected_date.strftime("%Y%m%d")
 display_date = selected_date.strftime("%Y년 %m월 %d일")
 
@@ -98,24 +97,21 @@ if "faultInfo" in data:
 box_office_result = data.get("boxOfficeResult", {})
 daily_list = box_office_result.get("dailyBoxOfficeList", [])
 
-# 선택한 날짜의 영화 목록이 비어 있는 경우
 if not daily_list:
     st.warning("⚠️ **그날은 아직 집계 전입니다**")
     st.info("선택하신 날짜의 박스오피스 집계 데이터가 없거나 아직 집계 중입니다. 다른 날짜를 선택해 보세요.")
     st.stop()
 
 # -----------------------------------------------------------------------------
-# 6. 데이터 변환 및 조건별 가공 (순위 증감, 100만 관객 트로피)
+# 6. 데이터 변환 및 가공 (순위 증감, 100만 관객 트로피)
 # -----------------------------------------------------------------------------
 df = pd.DataFrame(daily_list)
 
-# 문자열 숫자를 정수형(int)으로 변환
 numeric_cols = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt"]
 for col in numeric_cols:
     df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
-# 1) 순위 증감(rankInten) 화살표 표시 가공
-# 양수: 빨간 위 화살표(🔺), 음수: 파란 아래 화살표(🔹), 0: 유지(-)
+# 순위 증감 화살표 가공
 def format_rank_change(val):
     if val > 0:
         return f"🔺 {val}"
@@ -125,7 +121,7 @@ def format_rank_change(val):
 
 df["순위변동"] = df["rankInten"].apply(format_rank_change)
 
-# 2) 누적관객 100만 명 이상 영화명 옆 트로피(🏆) 추가
+# 100만 관객 이상 트로피 표시
 def format_movie_name(row):
     name = row["movieNm"]
     if row["audiAcc"] >= 1000000:
@@ -166,15 +162,14 @@ st.bar_chart(chart_data)
 st.divider()
 
 # -----------------------------------------------------------------------------
-# 9. 전체 박스오피스 순위표
+# 9. 전체 박스오피스 순위표 및 데이터 다운로드 기능
 # -----------------------------------------------------------------------------
 st.subheader("📋 박스오피스 전체 순위표")
 
-# 필요한 컬럼만 추출 및 한글 명칭 적용
 display_df = df[["rank", "순위변동", "표시_영화명", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
 display_df.columns = ["순위", "순위변동", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
 
-# 수치 데이터 천 단위 쉼표 포맷팅
+# 수치 데이터 포맷팅
 formatted_df = display_df.copy()
 formatted_df["관객수"] = formatted_df["관객수"].map("{:,}".format)
 formatted_df["누적관객"] = formatted_df["누적관객"].map("{:,}".format)
@@ -185,4 +180,18 @@ st.dataframe(
     formatted_df,
     use_container_width=True,
     hide_index=True
+)
+
+# -----------------------------------------------------------------------------
+# [신규 기능] CSV 파일 다운로드 버튼
+# -----------------------------------------------------------------------------
+# 엑셀 한글 깨짐 방지를 위해 utf-8-sig 인코딩 적용
+csv_bytes = display_df.to_csv(index=False).encode("utf-8-sig")
+
+st.download_button(
+    label="📥 조회된 박스오피스 표 CSV로 다운로드",
+    data=csv_bytes,
+    file_name=f"boxoffice_{target_dt}.csv",
+    mime="text/csv",
+    help="현재 화면에 표시된 박스오피스 순위표를 엑셀에서 열 수 있는 CSV 파일로 저장합니다."
 )
